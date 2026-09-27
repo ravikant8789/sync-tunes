@@ -286,6 +286,44 @@ app.get('/api/audio/:trackId', (req, res) => {
   }
 });
 
+// YouTube metadata helper endpoint (public oEmbed, zero API key required)
+app.get('/api/youtube-meta', async (req, res) => {
+  const input = req.query.url || req.query.videoId;
+  if (!input) return res.status(400).json({ error: 'Missing url or videoId parameter' });
+
+  const match = input.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=|shorts\/))([\w-]{11})/) || input.match(/^([\w-]{11})$/);
+  const videoId = match ? match[1] : null;
+
+  if (!videoId) {
+    return res.status(400).json({ error: 'Invalid YouTube URL or Video ID' });
+  }
+
+  const oembedUrl = `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`;
+
+  try {
+    const response = await fetch(oembedUrl);
+    if (!response.ok) throw new Error('oEmbed lookup failed');
+    const data = await response.json();
+    return res.json({
+      success: true,
+      videoId,
+      title: data.title || 'YouTube Music',
+      author: data.author_name || 'YouTube',
+      thumbnail: data.thumbnail_url || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+      url: `https://www.youtube.com/watch?v=${videoId}`
+    });
+  } catch (err) {
+    return res.json({
+      success: true,
+      videoId,
+      title: `YouTube Video (${videoId})`,
+      author: 'YouTube',
+      thumbnail: `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+      url: `https://www.youtube.com/watch?v=${videoId}`
+    });
+  }
+});
+
 // Room status endpoint for diagnostics
 app.get('/api/rooms/:roomId', (req, res) => {
   const room = rooms.get(req.params.roomId);
